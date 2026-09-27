@@ -66,7 +66,7 @@ class BookingIntegrationTest {
     }
     UUID hold(String user, String... seats) { return (UUID) bookings.hold(user, new Requests.Hold(showId, List.of(seats), null)).get("id"); }
     Map<String, Object> pay(UUID id) { return bookings.pay(id, "alice", new Requests.Payment("payment-" + id, "tok_success")); }
-    String status(UUID id) { return Db.string(bookings.view(id, "alice"), "status"); }
+    String bookingStatus(UUID id) { return Db.string(bookings.view(id, "alice"), "status"); }
     int count(String table) { return db.jdbc.queryForObject("SELECT COUNT(*) FROM " + table, Integer.class); }
     void coupon(int uses) { catalog.discount(new Requests.Discount("SAVE20", 20, 3000, 10000, uses, clock.instant().plusSeconds(86400))); }
 
@@ -76,7 +76,7 @@ class BookingIntegrationTest {
         UUID id = (UUID) held.get("id");
         assertThat(held).containsEntry("subtotal", 25000L).containsEntry("discount", 3000L).containsEntry("total", 22000L);
         pay(id);
-        assertThat(status(id)).isEqualTo("CONFIRMED");
+        assertThat(bookingStatus(id)).isEqualTo("CONFIRMED");
         assertThat(count("notification")).isEqualTo(2);
         verifyNoInteractions(sender);
         assertThat(bookings.history("bob", 50, 0)).isEmpty();
@@ -110,7 +110,7 @@ class BookingIntegrationTest {
     @Test void exactExpiryReleasesSeatsEvenBeforeTheJobRuns() {
         UUID id = hold("alice", "A1");
         clock.advance(300);
-        assertThat(status(id)).isEqualTo("EXPIRED");
+        assertThat(bookingStatus(id)).isEqualTo("EXPIRED");
         assertThat(bookings.seats(showId).get(0)).containsEntry("availability", "AVAILABLE");
         assertThatThrownBy(() -> pay(id)).isInstanceOf(ApiException.class);
         hold("bob", "A1");
@@ -130,14 +130,14 @@ class BookingIntegrationTest {
         race(6, () -> { pay(id); return true; });
         assertThat(count("payment")).isEqualTo(1);
         assertThat(count("notification")).isEqualTo(2);
-        assertThat(status(id)).isEqualTo("CONFIRMED");
+        assertThat(bookingStatus(id)).isEqualTo("CONFIRMED");
     }
 
     @Test void declinedPaymentCanBeRetriedWithANewKey() {
         UUID id = hold("alice", "A1");
         var declined = new Requests.Payment("declined-key", "tok_decline");
         bookings.pay(id, "alice", declined); bookings.pay(id, "alice", declined);
-        assertThat(status(id)).isEqualTo("HELD");
+        assertThat(bookingStatus(id)).isEqualTo("HELD");
         assertThat(count("notification")).isZero();
         assertThat(count("payment")).isEqualTo(1);
         assertThatThrownBy(() -> bookings.pay(id, "alice", new Requests.Payment("declined-key", "tok_success"))).isInstanceOf(ApiException.class);
@@ -149,7 +149,7 @@ class BookingIntegrationTest {
         UUID first = hold("alice", "A1"); pay(first);
         UUID second = hold("alice", "A2");
         assertThatThrownBy(() -> bookings.pay(second, "alice", new Requests.Payment("payment-" + first, "tok_success"))).isInstanceOf(ApiException.class);
-        assertThat(status(second)).isEqualTo("HELD");
+        assertThat(bookingStatus(second)).isEqualTo("HELD");
     }
 
     @Test void customersCannotReadPayOrCancelSomeoneElsesBooking() throws Exception {
@@ -157,9 +157,9 @@ class BookingIntegrationTest {
         mvc.perform(get("/api/bookings/" + id).with(httpBasic("bob", "customer-password"))).andExpect(status().isNotFound());
         mvc.perform(post("/api/bookings/" + id + "/cancel").with(httpBasic("bob", "customer-password"))).andExpect(status().isNotFound());
         mvc.perform(post("/api/bookings/" + id + "/payments").with(httpBasic("bob", "customer-password"))
-            .contentType(MediaType.APPLICATION_JSON).content("{"idempotencyKey":"someone-else","token":"tok_success"}"))
+            .contentType(MediaType.APPLICATION_JSON).content("{\"idempotencyKey\":\"someone-else\",\"token\":\"tok_success\"}"))
             .andExpect(status().isNotFound());
-        assertThat(status(id)).isEqualTo("HELD");
+        assertThat(bookingStatus(id)).isEqualTo("HELD");
     }
 
     @Test void pricingAndRefundTermsAreSnapshottedAtHoldTime() {
@@ -195,7 +195,7 @@ class BookingIntegrationTest {
         UUID id = hold("alice", "A1");
         raceTasks(List.of(() -> { try { pay(id); } catch (ApiException e) { assertThat(e.status.value()).isEqualTo(409); } return true; },
             () -> { bookings.cancel(id, "alice"); return true; }));
-        assertThat(status(id)).isEqualTo("CANCELLED");
+        assertThat(bookingStatus(id)).isEqualTo("CANCELLED");
         assertThat(count("refund")).isEqualTo(count("payment"));
         assertThat(bookings.seats(showId).get(0)).containsEntry("availability", "AVAILABLE");
     }
@@ -206,7 +206,7 @@ class BookingIntegrationTest {
         assertThatThrownBy(() -> bookings.hold("bob", new Requests.Hold(showId, List.of("A2"), "SAVE20"))).isInstanceOf(ApiException.class);
         clock.advance(300);
         bookings.hold("bob", new Requests.Hold(showId, List.of("A2"), "SAVE20"));
-        assertThat(status(id)).isEqualTo("EXPIRED");
+        assertThat(bookingStatus(id)).isEqualTo("EXPIRED");
     }
 
     @Test void discountLimitIsSafeAcrossDifferentShows() throws Exception {
@@ -284,7 +284,7 @@ class BookingIntegrationTest {
         UUID id = hold("alice", "A1"); pay(id);
         doThrow(new IllegalStateException("delivery unavailable")).doNothing().when(sender).send(any(), anyString());
         var jobs = new Jobs(db, clock, bookings, notifications); jobs.tick();
-        assertThat(status(id)).isEqualTo("CONFIRMED");
+        assertThat(bookingStatus(id)).isEqualTo("CONFIRMED");
         assertThat(db.one("SELECT attempts, delivered_at FROM notification WHERE booking_id = ? AND kind = 'CONFIRMATION'", id))
             .containsEntry("attempts", 1).containsEntry("deliveredAt", null);
         clock.advance(5); jobs.tick();
@@ -297,15 +297,15 @@ class BookingIntegrationTest {
         mvc.perform(get("/api/admin/screens").with(httpBasic("alice", "customer-password"))).andExpect(status().isForbidden());
         mvc.perform(get("/api/admin/screens").with(httpBasic("admin", "test-admin-password"))).andExpect(status().isOk());
         mvc.perform(post("/api/customers").contentType(MediaType.APPLICATION_JSON)
-            .content("{"username":"charlie","password":"charlie-password"}"))
+            .content("{\"username\":\"charlie\",\"password\":\"charlie-password\"}"))
             .andExpect(status().isCreated()).andExpect(jsonPath("$.role").value("CUSTOMER"));
         assertThat(Db.string(db.one("SELECT password_hash FROM app_user WHERE username = 'charlie'"), "passwordHash"))
             .doesNotContain("charlie-password");
         mvc.perform(post("/api/customers").contentType(MediaType.APPLICATION_JSON)
-            .content("{"username":"mallory","password":"long-password","role":"ADMIN"}"))
+            .content("{\"username\":\"mallory\",\"password\":\"long-password\",\"role\":\"ADMIN\"}"))
             .andExpect(status().isBadRequest());
         mvc.perform(post("/api/bookings").with(httpBasic("alice", "customer-password")).contentType(MediaType.APPLICATION_JSON)
-            .content("{"showId":" + showId + ","seats":[]}"))
+            .content("{\"showId\":" + showId + ",\"seats\":[]}"))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.detail").exists());
         mvc.perform(get("/api/shows?limit=1000")).andExpect(status().isBadRequest());
         mvc.perform(get("/api/bookings/not-a-uuid").with(httpBasic("alice", "customer-password"))).andExpect(status().isBadRequest());
@@ -316,6 +316,52 @@ class BookingIntegrationTest {
             .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1));
         mvc.perform(get("/api/shows").param("cityId", "99999")).andExpect(jsonPath("$.length()").value(0));
         mvc.perform(get("/api/shows").param("from", "2030-01-04T00:00:00Z")).andExpect(jsonPath("$.length()").value(0));
+    }
+
+
+    @Test void confirmedSeatsDoNotExpireWithTheirOriginalHoldDeadline() {
+        UUID id = hold("alice", "A1");
+        clock.advance(299); pay(id); clock.advance(1);
+        new Jobs(db, clock, bookings, notifications).tick();
+        assertThat(bookingStatus(id)).isEqualTo("CONFIRMED");
+        assertThatThrownBy(() -> hold("bob", "A1")).isInstanceOf(ApiException.class);
+    }
+
+    @Test void cancellingAnUnpaidHoldReturnsItsDiscountUse() {
+        coupon(1);
+        UUID id = (UUID) bookings.hold("alice", new Requests.Hold(showId, List.of("A1"), "SAVE20")).get("id");
+        bookings.cancel(id, "alice");
+        assertThat(count("refund")).isZero();
+        bookings.hold("bob", new Requests.Hold(showId, List.of("A1"), "SAVE20"));
+    }
+
+    @Test void cancellingAPaidBookingDoesNotReturnItsDiscountUse() {
+        coupon(1);
+        UUID id = (UUID) bookings.hold("alice", new Requests.Hold(showId, List.of("A1"), "SAVE20")).get("id");
+        pay(id); bookings.cancel(id, "alice");
+        assertThatThrownBy(() -> bookings.hold("bob", new Requests.Hold(showId, List.of("A1"), "SAVE20"))).isInstanceOf(ApiException.class);
+    }
+
+    @Test void discountExpiryAndMinimumSpendAreEnforced() {
+        catalog.discount(new Requests.Discount("BIG20", 20, 3000, 20000, 5, clock.instant().plusSeconds(10)));
+        assertThatThrownBy(() -> bookings.hold("alice", new Requests.Hold(showId, List.of("A1"), "BIG20"))).isInstanceOf(ApiException.class);
+        clock.advance(10);
+        assertThatThrownBy(() -> bookings.hold("alice", new Requests.Hold(showId, List.of("A1", "B1"), "BIG20"))).isInstanceOf(ApiException.class);
+        assertThat(count("booking")).isZero();
+    }
+
+    @Test void zeroTotalBookingCanBeConfirmedAndCancelled() {
+        catalog.discount(new Requests.Discount("FREE", 100, 10000, 0, 1, clock.instant().plusSeconds(60)));
+        UUID id = (UUID) bookings.hold("alice", new Requests.Hold(showId, List.of("A1"), "FREE")).get("id");
+        assertThat(bookings.view(id, "alice")).containsEntry("total", 0L);
+        pay(id); bookings.cancel(id, "alice");
+        assertThat(db.one("SELECT amount FROM refund WHERE booking_id = ?", id)).containsEntry("amount", 0L);
+    }
+
+    @Test void nullLayoutSeatIsAValidationError() throws Exception {
+        mvc.perform(put("/api/admin/screens/" + screenId + "/seats").with(httpBasic("admin", "test-admin-password"))
+            .contentType(MediaType.APPLICATION_JSON).content("{\"seats\":[null]}"))
+            .andExpect(status().isBadRequest());
     }
 
     private <T> List<T> race(int workers, Supplier<T> action) throws Exception {

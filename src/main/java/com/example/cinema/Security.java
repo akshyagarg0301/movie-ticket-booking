@@ -26,7 +26,7 @@ class Security {
             .orElseThrow(() -> new UsernameNotFoundException("Unknown user"));
     }
 
-    @Bean SecurityFilterChain security(HttpSecurity http, ObjectMapper json) throws Exception {
+    @Bean SecurityFilterChain filterChain(HttpSecurity http, ObjectMapper json) throws Exception {
         return http.csrf(csrf -> csrf.disable())
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .requestCache(cache -> cache.disable())

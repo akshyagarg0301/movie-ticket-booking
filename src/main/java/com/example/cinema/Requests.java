@@ -13,7 +13,7 @@ final class Requests {
     record Screen(@Positive long theaterId, @NotBlank @Size(max = 100) String name) {}
     enum Tier { REGULAR, PREMIUM }
     record Seat(@NotNull @Pattern(regexp = "[A-Z][A-Z0-9-]{0,9}") String label, @NotNull Tier tier) {}
-    record Layout(@NotEmpty @Size(max = 1000) List<@Valid Seat> seats) {}
+    record Layout(@NotEmpty @Size(max = 1000) List<@NotNull @Valid Seat> seats) {}
     record Policy(@NotBlank @Size(max = 100) String name, @Min(0) @Max(10080) int cutoffMinutes,
                   @Min(0) @Max(100) int refundPercent) {}
     record Pricing(@Min(1) @Max(10000000) long regularPrice, @Min(1) @Max(10000000) long premiumPrice,
