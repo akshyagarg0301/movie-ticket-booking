@@ -4,29 +4,30 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.time.Instant;
 import java.util.List;
+import static com.example.cinema.ValidationRules.*;
+import static com.example.cinema.BookingRules.FULL_PERCENT;
 
 final class Requests {
-    record Registration(@Pattern(regexp = "[a-zA-Z0-9_.-]{3,50}") @NotNull String username,
-                        @NotNull @Size(min = 10, max = 72) String password) {}
-    record City(@NotBlank @Size(max = 100) String name, @NotBlank @Size(max = 60) String timezone) {}
-    record Theater(@Positive long cityId, @NotBlank @Size(max = 100) String name) {}
-    record Screen(@Positive long theaterId, @NotBlank @Size(max = 100) String name) {}
-    enum Tier { REGULAR, PREMIUM }
-    record Seat(@NotNull @Pattern(regexp = "[A-Z][A-Z0-9-]{0,9}") String label, @NotNull Tier tier) {}
-    record Layout(@NotEmpty @Size(max = 1000) List<@NotNull @Valid Seat> seats) {}
-    record Policy(@NotBlank @Size(max = 100) String name, @Min(0) @Max(10080) int cutoffMinutes,
-                  @Min(0) @Max(100) int refundPercent) {}
-    record Pricing(@Min(1) @Max(10000000) long regularPrice, @Min(1) @Max(10000000) long premiumPrice,
-                   @Min(0) @Max(100) int weekendMarkup, @Positive long policyId) {}
-    record Show(@Positive long screenId, @NotBlank @Size(max = 160) String title,
+    record Registration(@Pattern(regexp = USERNAME_PATTERN) @NotNull String username,
+                        @NotNull @Size(min = MIN_PASSWORD_LENGTH, max = MAX_PASSWORD_BYTES) String password) {}
+    record City(@NotBlank @Size(max = MAX_NAME_LENGTH) String name, @NotBlank @Size(max = MAX_TIMEZONE_LENGTH) String timezone) {}
+    record Theater(@Positive long cityId, @NotBlank @Size(max = MAX_NAME_LENGTH) String name) {}
+    record Screen(@Positive long theaterId, @NotBlank @Size(max = MAX_NAME_LENGTH) String name) {}
+    record Seat(@NotNull @Pattern(regexp = SEAT_LABEL_PATTERN) String label, @NotNull SeatTier tier) {}
+    record Layout(@NotEmpty @Size(max = MAX_LAYOUT_SEATS) List<@NotNull @Valid Seat> seats) {}
+    record Policy(@NotBlank @Size(max = MAX_NAME_LENGTH) String name, @Min(0) @Max(MAX_REFUND_CUTOFF_MINUTES) int cutoffMinutes,
+                  @Min(0) @Max(FULL_PERCENT) int refundPercent) {}
+    record Pricing(@Min(1) @Max(MAX_SEAT_PRICE) long regularPrice, @Min(1) @Max(MAX_SEAT_PRICE) long premiumPrice,
+                   @Min(0) @Max(FULL_PERCENT) int weekendMarkup, @Positive long policyId) {}
+    record Show(@Positive long screenId, @NotBlank @Size(max = MAX_TITLE_LENGTH) String title,
                 @NotNull Instant startsAt, @NotNull Instant endsAt, @NotNull @Valid Pricing pricing) {}
-    record Discount(@NotNull @Pattern(regexp = "[A-Z0-9]{3,30}") String code,
-                    @Min(1) @Max(100) int percent, @Min(1) @Max(100000000) long maxDiscount,
-                    @Min(0) @Max(100000000) long minSpend, @Min(1) int maxUses,
+    record Discount(@NotNull @Pattern(regexp = DISCOUNT_CODE_PATTERN) String code,
+                    @Min(1) @Max(FULL_PERCENT) int percent, @Min(1) @Max(MAX_DISCOUNT_VALUE) long maxDiscount,
+                    @Min(0) @Max(MAX_DISCOUNT_VALUE) long minSpend, @Min(1) int maxUses,
                     @NotNull Instant expiresAt) {}
-    record Hold(@Positive long showId, @NotEmpty @Size(max = 10) List<@NotNull @Pattern(regexp = "[A-Z][A-Z0-9-]{0,9}") String> seats,
-                @Pattern(regexp = "[A-Z0-9]{3,30}") String discountCode) {}
-    record Payment(@NotNull @Pattern(regexp = "[A-Za-z0-9_-]{8,100}") String idempotencyKey,
-                   @NotNull @Pattern(regexp = "tok_success|tok_decline") String token) {}
+    record Hold(@Positive long showId, @NotEmpty @Size(max = MAX_BOOKING_SEATS) List<@NotNull @Pattern(regexp = SEAT_LABEL_PATTERN) String> seats,
+                @Pattern(regexp = DISCOUNT_CODE_PATTERN) String discountCode) {}
+    record Payment(@NotNull @Pattern(regexp = IDEMPOTENCY_KEY_PATTERN) String idempotencyKey,
+                   @NotNull PaymentToken token) {}
     private Requests() {}
 }

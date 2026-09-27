@@ -15,6 +15,8 @@ The assignment was implemented with Codex assistance. The user requested a new r
 
 9. At the user's request, replaced the Maven build with Gradle 8.8, kept the application in Java 17, and updated the run/build instructions. Earlier file-generation scripts remain archived as raw development history.
 
+10. Replaced repeated domain literals with enums, shared validation/business constants, API path/field constants and named worker limits. Preserved database string values and simulator token JSON values; added HTTP checks for enum validation and consistent pagination.
+
 ## Tools and skill sources
 
 - Codex wrote and revised Java, SQL, Python and Markdown, and ran shell commands for Maven (initial build), Gradle (current build), Git, API checks and repository publication.

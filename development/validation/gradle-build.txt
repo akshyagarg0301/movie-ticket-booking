@@ -1,7 +1,7 @@
 Gradle 8.8 / Java 17
-Command: ./gradlew --no-daemon --console=plain clean build
+Command: ./gradlew --no-daemon --offline --console=plain clean build
 
-com.example.cinema.BookingIntegrationTest: tests=32, failures=0, errors=0, skipped=0
+com.example.cinema.BookingIntegrationTest: tests=35, failures=0, errors=0, skipped=0
 com.example.cinema.PricingTest: tests=4, failures=0, errors=0, skipped=0
 
 BUILD SUCCESSFUL

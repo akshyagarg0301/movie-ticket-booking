@@ -1,5 +1,7 @@
 package com.example.cinema;
 
+import static com.example.cinema.ApiFields.*;
+
 import java.sql.*;
 import java.time.Instant;
 import java.util.*;
@@ -38,11 +40,15 @@ class Db {
     long insert(String sql, Object... args) {
         var key = new GeneratedKeyHolder();
         jdbc.update(connection -> {
-            var statement = connection.prepareStatement(sql, new String[]{"id"});
+            var statement = connection.prepareStatement(sql, new String[]{ID});
             for (int i = 0; i < args.length; i++) statement.setObject(i + 1, args[i]);
             return statement;
         }, key);
         return Objects.requireNonNull(key.getKey()).longValue();
+    }
+
+    static <E extends Enum<E>> E enumValue(Map<String, Object> row, String key, Class<E> type) {
+        return Enum.valueOf(type, string(row, key));
     }
 
     static long number(Map<String, Object> row, String key) { return ((Number) row.get(key)).longValue(); }

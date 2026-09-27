@@ -1,0 +1,3 @@
+The enum/constants refactor started against the database created by the previous Java/Gradle version.
+Existing customer authentication, cancelled booking history, 17600-paise refund, notification inbox, and cancelled-show seat availability remain compatible.
+The original Flyway migration was unchanged. All upgrade checks passed.

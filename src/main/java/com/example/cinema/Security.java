@@ -1,12 +1,17 @@
 package com.example.cinema;
 
+import static com.example.cinema.ApiFields.*;
+
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.*;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -17,12 +22,13 @@ import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
 class Security {
+    private static final String BASIC_AUTH_CHALLENGE = "Basic realm=cinema";
     @Bean PasswordEncoder passwords() { return new BCryptPasswordEncoder(); }
 
     @Bean UserDetailsService users(Db db) {
         return username -> db.rows("SELECT * FROM app_user WHERE username = ?", username).stream()
-            .map(row -> User.withUsername(username).password(Db.string(row, "passwordHash"))
-                .roles(Db.string(row, "role")).build()).findFirst()
+            .map(row -> User.withUsername(username).password(Db.string(row, PASSWORD_HASH))
+                .roles(Db.enumValue(row, ROLE, Role.class).name()).build()).findFirst()
             .orElseThrow(() -> new UsernameNotFoundException("Unknown user"));
     }
 
@@ -31,33 +37,35 @@ class Security {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .requestCache(cache -> cache.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.POST, "/api/customers").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/cities", "/api/theaters", "/api/shows", "/api/shows/*", "/api/shows/*/seats").permitAll()
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                .requestMatchers("/api/bookings/**", "/api/notifications").hasRole("CUSTOMER")
+                .requestMatchers(HttpMethod.POST, ApiPaths.ROOT + ApiPaths.CUSTOMERS).permitAll()
+                .requestMatchers(HttpMethod.GET, ApiPaths.ROOT + ApiPaths.CITIES, ApiPaths.ROOT + ApiPaths.THEATERS,
+                    ApiPaths.ROOT + ApiPaths.SHOWS, ApiPaths.ROOT + ApiPaths.SHOW, ApiPaths.ROOT + ApiPaths.SHOW_SEATS).permitAll()
+                .requestMatchers(ApiPaths.ROOT + ApiPaths.ADMIN + ApiPaths.DESCENDANTS).hasRole(Role.ADMIN.name())
+                .requestMatchers(ApiPaths.ROOT + ApiPaths.BOOKINGS + ApiPaths.DESCENDANTS, ApiPaths.ROOT + ApiPaths.NOTIFICATIONS).hasRole(Role.CUSTOMER.name())
                 .anyRequest().denyAll())
             .httpBasic(Customizer.withDefaults())
             .exceptionHandling(errors -> errors
                 .authenticationEntryPoint((req, res, e) -> {
-                    res.setStatus(401); res.setHeader("WWW-Authenticate", "Basic realm=cinema");
-                    res.setContentType("application/problem+json");
-                    json.writeValue(res.getOutputStream(), Map.of("status", 401, "title", "Unauthorized", "detail", "Valid credentials are required."));
+                    res.setStatus(HttpStatus.UNAUTHORIZED.value()); res.setHeader(HttpHeaders.WWW_AUTHENTICATE, BASIC_AUTH_CHALLENGE);
+                    res.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+                    json.writeValue(res.getOutputStream(), ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Valid credentials are required."));
                 })
                 .accessDeniedHandler((req, res, e) -> {
-                    res.setStatus(403); res.setContentType("application/problem+json");
-                    json.writeValue(res.getOutputStream(), Map.of("status", 403, "title", "Forbidden", "detail", "Your role cannot perform this action."));
+                    res.setStatus(HttpStatus.FORBIDDEN.value()); res.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+                    json.writeValue(res.getOutputStream(), ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, "Your role cannot perform this action."));
                 })).build();
     }
 
     @Bean ApplicationRunner admin(Db db, PasswordEncoder passwords,
             @Value("${cinema.admin.username}") String username, @Value("${cinema.admin.password}") String password) {
         return args -> {
-            if (db.jdbc.queryForObject("SELECT COUNT(*) FROM app_user WHERE role = 'ADMIN'", Integer.class) == 0) {
-                if (!username.matches("[a-zA-Z0-9_.-]{3,50}") || password.length() < 10
-                        || password.getBytes(StandardCharsets.UTF_8).length > 72) {
-                    throw new IllegalStateException("Set ADMIN_PASSWORD (10+ characters, at most 72 UTF-8 bytes) before the first start.");
+            if (db.jdbc.queryForObject("SELECT COUNT(*) FROM app_user WHERE role = ?", Integer.class, Role.ADMIN.name()) == 0) {
+                if (!username.matches(ValidationRules.USERNAME_PATTERN) || password.length() < ValidationRules.MIN_PASSWORD_LENGTH
+                        || password.getBytes(StandardCharsets.UTF_8).length > ValidationRules.MAX_PASSWORD_BYTES) {
+                    throw new IllegalStateException("Set ADMIN_PASSWORD (" + ValidationRules.MIN_PASSWORD_LENGTH + "+ characters, at most "
+                        + ValidationRules.MAX_PASSWORD_BYTES + " UTF-8 bytes) before the first start.");
                 }
-                db.jdbc.update("INSERT INTO app_user VALUES (?, ?, 'ADMIN')", username, passwords.encode(password));
+                db.jdbc.update("INSERT INTO app_user VALUES (?, ?, ?)", username, passwords.encode(password), Role.ADMIN.name());
             }
         };
     }

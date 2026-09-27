@@ -1,5 +1,7 @@
 package com.example.cinema;
 
+import static com.example.cinema.ApiFields.*;
+
 import java.time.*;
 import java.util.*;
 import org.springframework.stereotype.Service;
@@ -8,6 +10,7 @@ import static com.example.cinema.Db.*;
 
 @Service
 class Catalog {
+    private static final long NO_SHOW_ID = -1;
     private final Db db;
     private final Clock clock;
     Catalog(Db db, Clock clock) { this.db = db; this.clock = clock; }
@@ -28,10 +31,11 @@ class Catalog {
     }
 
     List<Map<String, Object>> browse(Long cityId, Long theaterId, String title, Instant from, Instant to, int limit, int offset) {
-        if (limit < 1 || limit > 100 || offset < 0) throw ApiException.badRequest("limit must be 1..100 and offset must be nonnegative");
+        Pagination.validate(limit, offset);
         if (from != null && to != null && !to.isAfter(from)) throw ApiException.badRequest("to must be after from");
         var args = new ArrayList<Object>();
-        StringBuilder sql = new StringBuilder(SHOW_QUERY + " WHERE s.status = 'OPEN' AND s.starts_at > ?");
+        StringBuilder sql = new StringBuilder(SHOW_QUERY + " WHERE s.status = ? AND s.starts_at > ?");
+        args.add(ShowStatus.OPEN.name());
         args.add(clock.instant());
         if (cityId != null) { sql.append(" AND c.id = ?"); args.add(cityId); }
         if (theaterId != null) { sql.append(" AND t.id = ?"); args.add(theaterId); }
@@ -50,7 +54,7 @@ class Catalog {
         validZone(request.timezone());
         db.one("SELECT id FROM city WHERE id = ?", id);
         // Changing timezone would change how already published shows are priced.
-        if (!string(db.one("SELECT timezone FROM city WHERE id = ?", id), "timezone").equals(request.timezone()))
+        if (!string(db.one("SELECT timezone FROM city WHERE id = ?", id), TIMEZONE).equals(request.timezone()))
             throw ApiException.conflict("A city's timezone cannot be changed; create a new city instead");
         db.jdbc.update("UPDATE city SET name = ? WHERE id = ?", request.name().trim(), id);
     }
@@ -67,12 +71,12 @@ class Catalog {
     }
     void renameTheater(long id, Requests.Theater request) {
         var row = db.one("SELECT * FROM theater WHERE id = ?", id);
-        if (number(row, "cityId") != request.cityId()) throw ApiException.conflict("A theater cannot move between cities");
+        if (number(row, CITY_ID) != request.cityId()) throw ApiException.conflict("A theater cannot move between cities");
         db.jdbc.update("UPDATE theater SET name = ? WHERE id = ?", request.name().trim(), id);
     }
     void renameScreen(long id, Requests.Screen request) {
         var row = db.one("SELECT * FROM screen WHERE id = ?", id);
-        if (number(row, "theaterId") != request.theaterId()) throw ApiException.conflict("A screen cannot move between theaters");
+        if (number(row, THEATER_ID) != request.theaterId()) throw ApiException.conflict("A screen cannot move between theaters");
         db.jdbc.update("UPDATE screen SET name = ? WHERE id = ?", request.name().trim(), id);
     }
     @Transactional
@@ -101,10 +105,10 @@ class Catalog {
         if (seats.isEmpty()) throw ApiException.conflict("Add a seat layout before scheduling a show");
         var p = request.pricing();
         long id = db.insert("""
-            INSERT INTO movie_show(screen_id, title, starts_at, ends_at, regular_price, premium_price, weekend_markup, policy_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, request.screenId(), request.title(), request.startsAt(), request.endsAt(), p.regularPrice(), p.premiumPrice(), p.weekendMarkup(), p.policyId());
-        seats.forEach(seat -> db.jdbc.update("INSERT INTO show_seat(show_id, label, tier) VALUES (?, ?, ?)", id, seat.get("label"), seat.get("tier")));
+            INSERT INTO movie_show(screen_id, title, starts_at, ends_at, regular_price, premium_price, weekend_markup, policy_id, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, request.screenId(), request.title(), request.startsAt(), request.endsAt(), p.regularPrice(), p.premiumPrice(), p.weekendMarkup(), p.policyId(), ShowStatus.OPEN.name());
+        seats.forEach(seat -> db.jdbc.update("INSERT INTO show_seat(show_id, label, tier) VALUES (?, ?, ?)", id, seat.get(LABEL), seat.get(TIER)));
         return id;
     }
     @Transactional
@@ -112,8 +116,8 @@ class Catalog {
         // Always lock screen before show, matching show creation's schedule lock.
         db.one("SELECT id FROM screen WHERE id = ? FOR UPDATE", request.screenId());
         var show = lockShow(id);
-        if (number(show, "screenId") != request.screenId()) throw ApiException.conflict("A show cannot move to another screen");
-        if (!string(show, "status").equals("OPEN")) throw ApiException.conflict("Show is cancelled");
+        if (number(show, SCREEN_ID) != request.screenId()) throw ApiException.conflict("A show cannot move to another screen");
+        if (enumValue(show, STATUS, ShowStatus.class) != ShowStatus.OPEN) throw ApiException.conflict("Show is cancelled");
         if (db.jdbc.queryForObject("SELECT COUNT(*) FROM booking WHERE show_id = ?", Integer.class, id) > 0)
             throw ApiException.conflict("A show with booking history cannot be rescheduled; update pricing or cancel it instead");
         validateShow(request, id);
@@ -128,15 +132,15 @@ class Catalog {
             throw ApiException.badRequest("Show must start in the future and end after its start");
         db.one("SELECT id FROM refund_policy WHERE id = ?", request.pricing().policyId());
         int overlaps = db.jdbc.queryForObject("""
-            SELECT COUNT(*) FROM movie_show WHERE screen_id = ? AND status = 'OPEN'
+            SELECT COUNT(*) FROM movie_show WHERE screen_id = ? AND status = ?
             AND starts_at < ? AND ends_at > ? AND id <> ?
-            """, Integer.class, request.screenId(), request.endsAt(), request.startsAt(), excludedId == null ? -1 : excludedId);
+            """, Integer.class, request.screenId(), ShowStatus.OPEN.name(), request.endsAt(), request.startsAt(), excludedId == null ? NO_SHOW_ID : excludedId);
         if (overlaps > 0) throw ApiException.conflict("Shows on the same screen cannot overlap");
     }
     @Transactional
     public void pricing(long id, Requests.Pricing request) {
         var show = lockShow(id);
-        if (!string(show, "status").equals("OPEN") || !instant(show, "startsAt").isAfter(clock.instant()))
+        if (enumValue(show, STATUS, ShowStatus.class) != ShowStatus.OPEN || !instant(show, STARTS_AT).isAfter(clock.instant()))
             throw ApiException.conflict("Show is no longer open");
         db.one("SELECT id FROM refund_policy WHERE id = ?", request.policyId());
         db.jdbc.update("UPDATE movie_show SET regular_price = ?, premium_price = ?, weekend_markup = ?, policy_id = ? WHERE id = ?",

@@ -56,8 +56,8 @@ class BookingIntegrationTest {
         cityId = catalog.city(new Requests.City("Pune", "Asia/Kolkata"));
         theaterId = catalog.theater(new Requests.Theater(cityId, "Central Cinema"));
         screenId = catalog.screen(new Requests.Screen(theaterId, "Screen 1"));
-        catalog.layout(screenId, new Requests.Layout(List.of(new Requests.Seat("A1", Requests.Tier.REGULAR),
-            new Requests.Seat("A2", Requests.Tier.REGULAR), new Requests.Seat("B1", Requests.Tier.PREMIUM))));
+        catalog.layout(screenId, new Requests.Layout(List.of(new Requests.Seat("A1", SeatTier.REGULAR),
+            new Requests.Seat("A2", SeatTier.REGULAR), new Requests.Seat("B1", SeatTier.PREMIUM))));
         policyId = catalog.policy(new Requests.Policy("Standard", 120, 80));
         showId = catalog.createShow(showRequest(clock.instant().plusSeconds(10800)));
     }
@@ -65,7 +65,7 @@ class BookingIntegrationTest {
         return new Requests.Show(screenId, "Arrival", starts, starts.plusSeconds(7200), new Requests.Pricing(10000, 15000, 20, policyId));
     }
     UUID hold(String user, String... seats) { return (UUID) bookings.hold(user, new Requests.Hold(showId, List.of(seats), null)).get("id"); }
-    Map<String, Object> pay(UUID id) { return bookings.pay(id, "alice", new Requests.Payment("payment-" + id, "tok_success")); }
+    Map<String, Object> pay(UUID id) { return bookings.pay(id, "alice", new Requests.Payment("payment-" + id, PaymentToken.SUCCESS)); }
     String bookingStatus(UUID id) { return Db.string(bookings.view(id, "alice"), "status"); }
     int count(String table) { return db.jdbc.queryForObject("SELECT COUNT(*) FROM " + table, Integer.class); }
     void coupon(int uses) { catalog.discount(new Requests.Discount("SAVE20", 20, 3000, 10000, uses, clock.instant().plusSeconds(86400))); }
@@ -135,12 +135,12 @@ class BookingIntegrationTest {
 
     @Test void declinedPaymentCanBeRetriedWithANewKey() {
         UUID id = hold("alice", "A1");
-        var declined = new Requests.Payment("declined-key", "tok_decline");
+        var declined = new Requests.Payment("declined-key", PaymentToken.DECLINE);
         bookings.pay(id, "alice", declined); bookings.pay(id, "alice", declined);
         assertThat(bookingStatus(id)).isEqualTo("HELD");
         assertThat(count("notification")).isZero();
         assertThat(count("payment")).isEqualTo(1);
-        assertThatThrownBy(() -> bookings.pay(id, "alice", new Requests.Payment("declined-key", "tok_success"))).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> bookings.pay(id, "alice", new Requests.Payment("declined-key", PaymentToken.SUCCESS))).isInstanceOf(ApiException.class);
         pay(id);
         assertThat(count("payment")).isEqualTo(2);
     }
@@ -148,7 +148,7 @@ class BookingIntegrationTest {
     @Test void idempotencyKeyCannotBeReusedForAnotherBooking() {
         UUID first = hold("alice", "A1"); pay(first);
         UUID second = hold("alice", "A2");
-        assertThatThrownBy(() -> bookings.pay(second, "alice", new Requests.Payment("payment-" + first, "tok_success"))).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> bookings.pay(second, "alice", new Requests.Payment("payment-" + first, PaymentToken.SUCCESS))).isInstanceOf(ApiException.class);
         assertThat(bookingStatus(second)).isEqualTo("HELD");
     }
 
@@ -247,7 +247,7 @@ class BookingIntegrationTest {
     }
 
     @Test void layoutChangesOnlyAffectNewShows() {
-        catalog.layout(screenId, new Requests.Layout(List.of(new Requests.Seat("C1", Requests.Tier.PREMIUM))));
+        catalog.layout(screenId, new Requests.Layout(List.of(new Requests.Seat("C1", SeatTier.PREMIUM))));
         long next = catalog.createShow(showRequest(clock.instant().plusSeconds(86400)));
         assertThat(bookings.seats(showId)).hasSize(3);
         assertThat(bookings.seats(next)).hasSize(1).first().satisfies(seat -> assertThat(seat.get("label")).isEqualTo("C1"));
@@ -362,6 +362,58 @@ class BookingIntegrationTest {
         mvc.perform(put("/api/admin/screens/" + screenId + "/seats").with(httpBasic("admin", "test-admin-password"))
             .contentType(MediaType.APPLICATION_JSON).content("{\"seats\":[null]}"))
             .andExpect(status().isBadRequest());
+    }
+
+
+    @Test void paymentEnumPreservesApiTokensAndRejectsInvalidValues() throws Exception {
+        UUID id = hold("alice", "A1");
+        String path = "/api/bookings/" + id + "/payments";
+        for (String token : List.of("\"unknown\"", "\"SUCCESS\"", "0", "true", "null")) {
+            mvc.perform(post(path).with(httpBasic("alice", "customer-password"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"idempotencyKey\":\"enum-payment-key\",\"token\":" + token + "}"))
+                .andExpect(status().isBadRequest());
+        }
+        assertThat(count("payment")).isZero();
+        mvc.perform(post(path).with(httpBasic("alice", "customer-password"))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"idempotencyKey\":\"enum-declined-key\",\"token\":\"tok_decline\"}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.payment.outcome").value("DECLINED"))
+            .andExpect(jsonPath("$.booking.status").value("HELD"));
+        mvc.perform(post(path).with(httpBasic("alice", "customer-password"))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"idempotencyKey\":\"enum-payment-key\",\"token\":\"tok_success\"}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.payment.outcome").value("SUCCEEDED"))
+            .andExpect(jsonPath("$.booking.status").value("CONFIRMED"));
+        assertThat(count("payment")).isEqualTo(2);
+    }
+
+    @Test void seatTierRequiresAValidNameRatherThanAnOrdinal() throws Exception {
+        for (String tier : List.of("0", "\"VIP\"", "\"premium\"")) {
+            mvc.perform(put("/api/admin/screens/" + screenId + "/seats").with(httpBasic("admin", "test-admin-password"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"seats\":[{\"label\":\"C1\",\"tier\":" + tier + "}]}"))
+                .andExpect(status().isBadRequest());
+        }
+        assertThat(count("layout_seat")).isEqualTo(3);
+        mvc.perform(put("/api/admin/screens/" + screenId + "/seats").with(httpBasic("admin", "test-admin-password"))
+            .contentType(MediaType.APPLICATION_JSON).content("{\"seats\":[{\"label\":\"C1\",\"tier\":\"PREMIUM\"}]}"))
+            .andExpect(status().isOk());
+        assertThat(db.one("SELECT tier FROM layout_seat WHERE screen_id = ?", screenId)).containsEntry("tier", "PREMIUM");
+    }
+
+    @Test void paginationDefaultsAndBoundsApplyToAllPagedEndpoints() throws Exception {
+        for (String path : List.of("/api/shows", "/api/bookings", "/api/notifications")) {
+            mvc.perform(get(path).with(httpBasic("alice", "customer-password"))).andExpect(status().isOk());
+            mvc.perform(get(path).param("limit", "100").with(httpBasic("alice", "customer-password")))
+                .andExpect(status().isOk());
+            for (String limit : List.of("0", "-1", "101")) {
+                mvc.perform(get(path).param("limit", limit).with(httpBasic("alice", "customer-password")))
+                    .andExpect(status().isBadRequest());
+            }
+            mvc.perform(get(path).param("offset", "-1").with(httpBasic("alice", "customer-password")))
+                .andExpect(status().isBadRequest());
+        }
     }
 
     private <T> List<T> race(int workers, Supplier<T> action) throws Exception {

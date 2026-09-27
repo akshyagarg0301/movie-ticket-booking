@@ -50,6 +50,14 @@ The demo creates its own uniquely named catalog and customer, then checks a decl
 - **Refunds are simulated.** A persisted refund entry is created in the same transaction as cancellation. The unique booking key prevents duplicate refunds. No actual money moves. A real gateway would need a pending-payment/refund state and idempotent reconciliation; holding a DB transaction open across a remote charge would be the wrong extension.
 - **Notifications:** confirmation, cancellation and one-hour reminders go into a transactional outbox. A scheduled worker publishes them to a persistent customer inbox and the application log. Delivery is outside the booking request. Failure retries with exponential backoff capped at one hour. Cancellation removes pending reminders. A booking made less than an hour before its show gets a reminder on the next worker run. If the process was down, overdue notifications are delivered after restart. This local adapter does not send email or SMS.
 
+## Shared domain definitions
+
+Booking/show states, seat tiers and availability, user roles, payment tokens/outcomes, and notification types are Java enums. The database stores their names as strings; payment tokens keep their existing `tok_success` and `tok_decline` JSON values. Invalid names and numeric enum ordinals are rejected at the request boundary.
+
+`ValidationRules` defines request limits and patterns shared with admin bootstrap validation. `BookingRules` names the currency, percentage base, allowed hold range and reminder lead time. `Pagination` owns defaults and bounds for all paginated endpoints. `ApiPaths` is shared by controllers and security; `ApiFields` owns the JDBC alias/JSON keys used by map-based views. Worker batch/retry limits are named constants in `Jobs`, and elapsed times use `Duration`. The hold duration and worker interval remain external configuration in `application.properties`.
+
+Historical Flyway migrations keep their original SQL literals so existing databases retain valid checksums. Runtime SQL binds enum names as parameters. Test fixtures and expected API strings remain explicit so tests can detect accidental changes to the public contract.
+
 ## Why seats cannot be allocated twice
 
 Every operation that changes a show's allocations first locks its `movie_show` row with `SELECT … FOR UPDATE`. Under that lock it expires old holds, checks availability, and changes booking/seat state in one transaction. The lock is a database lock, not a Java mutex. A second transaction waits and then sees the first transaction's committed allocation.

@@ -1,5 +1,7 @@
 package com.example.cinema;
 
+import static com.example.cinema.ApiFields.*;
+
 import java.time.Clock;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -18,16 +20,17 @@ class Notifications {
     public void deliver(UUID id) {
         var rows = db.rows("SELECT b.show_id FROM notification n JOIN booking b ON b.id = n.booking_id WHERE n.id = ?", id);
         if (rows.isEmpty()) return;
-        catalog.lockShow(Db.number(rows.get(0), "showId"));
+        catalog.lockShow(Db.number(rows.get(0), SHOW_ID));
         rows = db.rows("SELECT * FROM notification WHERE id = ? FOR UPDATE", id);
         if (rows.isEmpty()) return;
         var notification = rows.get(0);
-        if (notification.get("deliveredAt") != null || Db.instant(notification, "dueAt").isAfter(clock.instant())) return;
-        var booking = db.one("SELECT status FROM booking WHERE id = ?", notification.get("bookingId"));
-        if ("REMINDER".equals(notification.get("kind")) && !"CONFIRMED".equals(booking.get("status"))) {
+        if (notification.get(DELIVERED_AT) != null || Db.instant(notification, DUE_AT).isAfter(clock.instant())) return;
+        var booking = db.one("SELECT status FROM booking WHERE id = ?", notification.get(BOOKING_ID));
+        if (Db.enumValue(notification, KIND, NotificationType.class) == NotificationType.REMINDER
+                && Db.enumValue(booking, STATUS, BookingStatus.class) != BookingStatus.CONFIRMED) {
             db.jdbc.update("DELETE FROM notification WHERE id = ?", id); return;
         }
-        sender.send(id, Db.string(notification, "message"));
+        sender.send(id, Db.string(notification, MESSAGE));
         db.jdbc.update("UPDATE notification SET delivered_at = ? WHERE id = ?", clock.instant(), id);
     }
 }

@@ -66,7 +66,7 @@ curl -u "admin:$ADMIN_PASSWORD" -H 'Content-Type: application/json' \
   http://localhost:8080/api/admin/discounts
 ```
 
-Names are limited to 100 characters (show titles: 160). Use valid IANA timezones, uppercase seat labels of up to 10 characters, and uppercase alphanumeric discount codes of 3–30 characters. Layouts contain at most 1,000 distinct, non-null seats. Prices must be positive and at most 10,000,000 paise per seat. Percentages, duration bounds, date order and referenced resources are validated. Unknown JSON fields are rejected.
+Names are limited to 100 characters (show titles: 160). Use valid IANA timezones, uppercase seat labels of up to 10 characters, and uppercase alphanumeric discount codes of 3–30 characters. Layouts contain at most 1,000 distinct, non-null seats. Prices must be positive and at most 10,000,000 paise per seat. Percentages, duration bounds, date order and referenced resources are validated. Unknown JSON fields are rejected. Seat tiers must be the exact enum names `REGULAR` or `PREMIUM`; numeric ordinals are rejected.
 
 ## Customer flow
 

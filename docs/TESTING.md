@@ -4,15 +4,17 @@ Validated on 27 September 2026 with Java 17.0.20.1, Gradle 8.8, Spring Boot 3.5.
 
 ## Automated suite
 
-`./gradlew clean build` completed successfully: **36 tests, 0 failures, 0 errors, 0 skipped**.
+`./gradlew clean build` completed successfully: **39 tests, 0 failures, 0 errors, 0 skipped**.
 
 - 4 unit tests for monetary rounding, discount caps, local weekend dates and refund boundaries.
-- 32 integration tests using the complete Spring application, Spring Security and a real migrated H2 database.
+- 35 integration tests using the complete Spring application, Spring Security and a real migrated H2 database.
 - The notification adapter is mocked to inject a delivery failure; database and booking operations are real.
 - Integration tests are not wrapped in a test transaction. Parallel tasks therefore use separate connections and committed transactions.
 - The mutable clock makes deadline tests deterministic without sleeping.
 
 Reports are retained in `development/validation/`. The Gradle wrapper ran the complete build using a workspace-local Gradle cache. Its distribution is pinned to 8.8 with an official SHA-256 checksum. Earlier Maven reports are retained as development history; `gradle-build.txt` records the current build. The generated HTML report is `build/reports/tests/test/index.html`.
+
+The enum/constants refactor also checks the existing payment token JSON values, invalid enum names and ordinals, and consistent pagination across shows, booking history and notifications.
 
 ## Packaged HTTP check
 
@@ -23,6 +25,8 @@ The demo passed catalog setup, registration, public browsing, hold creation, tie
 ## Persistence check
 
 Stopped and restarted the executable jar using the same H2 database. Verified that customer authentication, two historical bookings, a cancelled booking, its 17,600-paise refund and delivered notifications were still present. Startup reused the persisted admin without requiring the bootstrap password again.
+
+After the enum/constants refactor, the new jar was started against the previous version's database. Existing accounts, bookings, refunds, notifications and seat availability remained readable; see `enum-upgrade.txt`. The complete HTTP demo also passed against the refactored application (`enum-http-demo.txt`).
 
 ## Limits
 
