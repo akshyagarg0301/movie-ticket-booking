@@ -1,0 +1,13 @@
+Java formatting validation
+
+Formatter: google-java-format 1.24.0, AOSP style (four spaces)
+Options: --skip-reflowing-long-strings --dry-run --set-exit-if-changed
+Result: all 29 Java application and test files passed.
+
+Gradle: ./gradlew --no-daemon --offline --console=plain clean build
+Result: BUILD SUCCESSFUL
+BookingIntegrationTest: 35 tests, 0 failures, 0 errors, 0 skipped
+PricingTest: 4 tests, 0 failures, 0 errors, 0 skipped
+
+Compared javap -c -p -constants output for all application and test classes
+before and after formatting: identical.

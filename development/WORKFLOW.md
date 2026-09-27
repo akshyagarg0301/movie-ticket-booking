@@ -17,6 +17,8 @@ The assignment was implemented with Codex assistance. The user requested a new r
 
 10. Replaced repeated domain literals with enums, shared validation/business constants, API path/field constants and named worker limits. Preserved database string values and simulator token JSON values; added HTTP checks for enum validation and consistent pagination.
 
+11. Formatted all Java application and test sources with google-java-format 1.24.0 in its four-space AOSP style. Expanded single-statement control-flow bodies with braces, aligned SQL text blocks, and added editor settings. The full Gradle build passed all 39 tests; comparison of `javap -c -p -constants` output before and after confirmed identical compiled instructions and constants. The temporary brace-insertion helper is retained under `development/raw/`.
+
 ## Tools and skill sources
 
 - Codex wrote and revised Java, SQL, Python and Markdown, and ran shell commands for Maven (initial build), Gradle (current build), Git, API checks and repository publication.

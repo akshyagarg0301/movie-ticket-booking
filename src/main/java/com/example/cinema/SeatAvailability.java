@@ -1,5 +1,8 @@
 package com.example.cinema;
 
 enum SeatAvailability {
-    AVAILABLE, HELD, BOOKED, UNAVAILABLE
+    AVAILABLE,
+    HELD,
+    BOOKED,
+    UNAVAILABLE
 }

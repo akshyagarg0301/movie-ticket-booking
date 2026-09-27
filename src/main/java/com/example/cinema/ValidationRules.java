@@ -19,10 +19,14 @@ final class ValidationRules {
     static final int MIN_IDEMPOTENCY_KEY_LENGTH = 8;
     static final int MAX_IDEMPOTENCY_KEY_LENGTH = 100;
 
-    static final String USERNAME_PATTERN = "[a-zA-Z0-9_.-]{" + MIN_USERNAME_LENGTH + "," + MAX_USERNAME_LENGTH + "}";
-    static final String SEAT_LABEL_PATTERN = "[A-Z][A-Z0-9-]{0," + (MAX_SEAT_LABEL_LENGTH - 1) + "}";
-    static final String DISCOUNT_CODE_PATTERN = "[A-Z0-9]{" + MIN_DISCOUNT_CODE_LENGTH + "," + MAX_DISCOUNT_CODE_LENGTH + "}";
-    static final String IDEMPOTENCY_KEY_PATTERN = "[A-Za-z0-9_-]{" + MIN_IDEMPOTENCY_KEY_LENGTH + "," + MAX_IDEMPOTENCY_KEY_LENGTH + "}";
+    static final String USERNAME_PATTERN =
+            "[a-zA-Z0-9_.-]{" + MIN_USERNAME_LENGTH + "," + MAX_USERNAME_LENGTH + "}";
+    static final String SEAT_LABEL_PATTERN =
+            "[A-Z][A-Z0-9-]{0," + (MAX_SEAT_LABEL_LENGTH - 1) + "}";
+    static final String DISCOUNT_CODE_PATTERN =
+            "[A-Z0-9]{" + MIN_DISCOUNT_CODE_LENGTH + "," + MAX_DISCOUNT_CODE_LENGTH + "}";
+    static final String IDEMPOTENCY_KEY_PATTERN =
+            "[A-Za-z0-9_-]{" + MIN_IDEMPOTENCY_KEY_LENGTH + "," + MAX_IDEMPOTENCY_KEY_LENGTH + "}";
 
     private ValidationRules() {}
 }

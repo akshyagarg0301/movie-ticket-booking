@@ -1,5 +1,6 @@
 package com.example.cinema;
 
 enum SeatTier {
-    REGULAR, PREMIUM
+    REGULAR,
+    PREMIUM
 }

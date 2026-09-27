@@ -17,14 +17,20 @@ enum PaymentToken {
     }
 
     @JsonValue
-    public String value() { return value; }
+    public String value() {
+        return value;
+    }
 
-    PaymentOutcome outcome() { return outcome; }
+    PaymentOutcome outcome() {
+        return outcome;
+    }
 
     @JsonCreator
     public static PaymentToken fromValue(String value) {
         for (PaymentToken token : values()) {
-            if (token.value.equals(value)) return token;
+            if (token.value.equals(value)) {
+                return token;
+            }
         }
         throw new IllegalArgumentException("Unknown payment simulator token");
     }

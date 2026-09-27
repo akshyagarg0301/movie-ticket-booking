@@ -1,5 +1,6 @@
 package com.example.cinema;
 
 enum Role {
-    ADMIN, CUSTOMER
+    ADMIN,
+    CUSTOMER
 }

@@ -8,8 +8,10 @@ final class Pagination {
     static final String DEFAULT_OFFSET_VALUE = "" + DEFAULT_OFFSET;
 
     static void validate(int limit, int offset) {
-        if (limit < 1 || limit > MAX_LIMIT || offset < 0)
-            throw ApiException.badRequest("limit must be 1.." + MAX_LIMIT + " and offset must be nonnegative");
+        if (limit < 1 || limit > MAX_LIMIT || offset < 0) {
+            throw ApiException.badRequest(
+                    "limit must be 1.." + MAX_LIMIT + " and offset must be nonnegative");
+        }
     }
 
     private Pagination() {}
