@@ -4,7 +4,7 @@ This maps the supplied PDF to the implementation. Choices and limitations are de
 
 | Requirement | Implementation / evidence |
 |---|---|
-| Spring Boot REST service | Spring Boot application, Maven wrapper, catalog and booking controllers |
+| Spring Boot REST service | Spring Boot application, Gradle wrapper, catalog and booking controllers |
 | Multiple cities, theaters and shows | City → theater → screen → show foreign keys, catalog APIs and browse filters |
 | Seat layouts and seat selection | Screen layouts, per-show snapshots, regular/premium seats, atomic 1–10-seat holds |
 | Time-bound holds and automatic release | Persisted deadline; worker cleanup; lazy cleanup and effective availability at expiry |

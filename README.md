@@ -4,11 +4,11 @@ A Spring Boot REST API for booking individual seats across cities, theaters and 
 
 ## Run it
 
-Requires Java 17 or newer. The Maven wrapper downloads Maven and dependencies on the first run. No database installation is needed.
+Requires JDK 17. The Gradle wrapper downloads Gradle 8.8 and dependencies on the first run. On Windows, use `gradlew.bat` in place of `./gradlew`. No database installation is needed.
 
 ```sh
 export ADMIN_PASSWORD='choose-a-local-password'
-./mvnw spring-boot:run
+./gradlew bootRun
 ```
 
 The API listens on `http://localhost:8080`. The first startup creates `admin` using `ADMIN_PASSWORD`; subsequent starts keep the stored account. Set `ADMIN_USERNAME` before the first start to choose another name. There is deliberately no default admin password.
@@ -18,8 +18,8 @@ The default H2 database is stored under `data/` and survives a restart. Flyway a
 Run the tests and build an executable jar:
 
 ```sh
-./mvnw verify
-java -jar target/movie-ticket-booking-1.0.0.jar
+./gradlew clean build
+java -jar build/libs/movie-ticket-booking-1.0.0.jar
 ```
 
 Run the complete HTTP demo in another terminal with the same admin password:
@@ -33,7 +33,7 @@ The demo creates its own uniquely named catalog and customer, then checks a decl
 
 ## Scope and choices
 
-- **Stack:** Java 17, Spring Boot 3.5.16, Spring MVC, Spring Security, Bean Validation, JDBC, Flyway and H2. JDBC makes the lock order and SQL constraints visible. H2 keeps the assignment runnable without infrastructure. [Spring Boot's requirements](https://docs.spring.io/spring-boot/3.5/system-requirements.html) describe supported Java and build-tool versions.
+- **Stack:** Java 17, Gradle 8.8, Spring Boot 3.5.16, Spring MVC, Spring Security, Bean Validation, JDBC, Flyway and H2. JDBC makes the lock order and SQL constraints visible. H2 keeps the assignment runnable without infrastructure. [Spring Boot's requirements](https://docs.spring.io/spring-boot/3.5/system-requirements.html) describe supported Java and build-tool versions.
 - **One service, one database.** No UI, containers, deployment configuration, CI or microservices, as requested in the assignment.
 - **Hierarchy:** city → theater → screen → show. A theater can contain several screens; each screen has its own layout. Shows on the same screen cannot overlap. Adjacent show times are allowed; cleaning time is not added automatically.
 - **Show details:** a title and start/end times are enough here. A separate movie catalog, actors, language and age ratings are left out.

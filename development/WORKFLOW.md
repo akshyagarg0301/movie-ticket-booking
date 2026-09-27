@@ -13,12 +13,14 @@ The assignment was implemented with Codex assistance. The user requested a new r
 7. Built and exercised the packaged server through a standalone Python HTTP demo, including simultaneous requests. Checked disk persistence across restart.
 8. Documented assumptions, the API, test evidence and a timed personal-video outline. Published the repository with separate development commits.
 
+9. At the user's request, replaced the Maven build with Gradle 8.8, kept the application in Java 17, and updated the run/build instructions. Earlier file-generation scripts remain archived as raw development history.
+
 ## Tools and skill sources
 
-- Codex wrote and revised Java, SQL, Python and Markdown, and ran shell commands for Maven, Git, API checks and repository publication.
+- Codex wrote and revised Java, SQL, Python and Markdown, and ran shell commands for Maven (initial build), Gradle (current build), Git, API checks and repository publication.
 - `development/skills/ponytail.md` is the skill used for implementation simplicity.
 - `development/skills/browser.md` was used to check GitHub browser access. Browser sign-in was unavailable; the user authorized GitHub CLI with its device flow instead.
-- Maven and GitHub CLI were downloaded from their official distribution sources. Spring Boot's Java compatibility was checked against its official documentation.
+- Maven, Gradle and GitHub CLI were downloaded from their official distribution sources. Spring Boot's Java compatibility was checked against its official documentation.
 - The source PDF is retained as `development/assignment.pdf`. Early file-generation scripts are retained under `development/raw/` for provenance. They are intermediate development inputs, not the build system; the checked-in source files are authoritative.
 
 No private account tokens, device codes, passwords, global configuration, dependency caches or local database contents belong in this repository. The public source uses only disposable test credentials. Machine-specific paths in validation evidence are removed. This record summarizes observable development steps; it is not a fabricated transcript of human work or an export of hidden model reasoning.
