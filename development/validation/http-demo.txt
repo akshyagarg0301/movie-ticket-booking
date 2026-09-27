@@ -1,0 +1,14 @@
+Created city, theater, screen, layout, refund policy, show and discount.
+Booked A1 + B1: subtotal=25000, discount=3000, paid=22000 paise.
+Decline, successful retry, and duplicate-payment protection verified.
+Concurrent HTTP booking: 1 winner, 5 conflicts, no double allocation.
+Cancellation refunded 17600 paise; retry did not refund twice.
+Background notifications delivered to the customer inbox.
+{
+  "customer": "demo-355ace53",
+  "showId": 1,
+  "bookingId": "c99a4480-1f89-4f4c-87dd-ce0d3c41c7d4",
+  "historyCount": 2,
+  "notificationCount": 3
+}
+All HTTP demo checks passed.

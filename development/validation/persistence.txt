@@ -1,0 +1,4 @@
+Packaged application restarted against the same file-backed H2 database.
+Customer authentication, two booking history records, cancelled booking state, 17600-paise refund, and delivered inbox messages survived restart.
+Existing admin account allowed startup without supplying bootstrap ADMIN_PASSWORD again.
+All persistence checks passed.
